@@ -1,0 +1,19 @@
+@inherits LayoutComponentBase
+
+<PageTitle>TodoApp</PageTitle>
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row">
+            <a href="https://learn.microsoft.com/aspnet/" target="_blank">About Blazor</a>
+        </div>
+
+        <article class="content">
+            @Body
+        </article>
+    </main>
+</div>

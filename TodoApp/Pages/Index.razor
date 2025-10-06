@@ -1,0 +1,246 @@
+@page "/"
+
+<PageTitle>To-do List</PageTitle>
+
+<div class="todo-app">
+    <section class="todo-hero">
+        <h1>Organise your day</h1>
+        <p>Create tasks, track progress and celebrate the wins.</p>
+        <div class="todo-summary">
+            <span class="summary-pill">
+                <strong>@RemainingCount</strong>
+                <span>open @((RemainingCount == 1 ? "task" : "tasks"))</span>
+            </span>
+            <span class="summary-pill">
+                <strong>@_items.Count</strong>
+                <span>total @((_items.Count == 1 ? "item" : "items"))</span>
+            </span>
+        </div>
+    </section>
+
+    <section class="todo-create card">
+        <h2>Add a new task</h2>
+        <EditForm Model="@newTodo" OnValidSubmit="@AddTodo">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="field">
+                <label for="title">Title</label>
+                <InputText id="title" class="input" @bind-Value="newTodo.Title" placeholder="What needs to be done?" />
+                <ValidationMessage For="() => newTodo.Title" />
+            </div>
+            <div class="field">
+                <label for="notes">Notes <span class="optional">Optional</span></label>
+                <InputTextArea id="notes" class="input" @bind-Value="newTodo.Notes" placeholder="Add context or steps" rows="3" />
+            </div>
+            <div class="actions">
+                <button class="btn primary" type="submit">Add task</button>
+                <button class="btn ghost" type="button" @onclick="ResetNewTodo">Reset</button>
+            </div>
+        </EditForm>
+    </section>
+
+    <section class="todo-controls">
+        <div class="search">
+            <span aria-hidden="true">🔍</span>
+            <input class="search-input" placeholder="Search tasks" @bind="searchTerm" @bind:event="oninput" />
+        </div>
+        <label class="toggle">
+            <input type="checkbox" @bind="showCompleted" />
+            <span>Show completed tasks</span>
+        </label>
+        <button class="btn danger" @onclick="ClearCompleted" disabled="@(!HasCompleted)">Clear completed</button>
+    </section>
+
+    <section class="todo-list card">
+        <header>
+            <h2>Your tasks</h2>
+        </header>
+
+        @if (!FilteredTodos.Any())
+        {
+            <div class="empty-state">
+                <span aria-hidden="true" class="empty-icon">✨</span>
+                <p>No tasks found. Start by adding one above.</p>
+            </div>
+        }
+        else
+        {
+            <ul>
+                @foreach (var item in FilteredTodos)
+                {
+                    <li class="todo-item @(item.IsCompleted ? "completed" : string.Empty)">
+                        <div class="todo-item-main">
+                            <input type="checkbox" checked="@item.IsCompleted" @onchange="args => ToggleCompleted(item, args)" aria-label="Toggle completion" />
+
+                            @if (editingId == item.Id)
+                            {
+                                <EditForm Model="@editTodo" OnValidSubmit="SaveEdit">
+                                    <DataAnnotationsValidator />
+                                    <div class="edit-form">
+                                        <InputText class="input" @bind-Value="editTodo.Title" />
+                                        <ValidationMessage For="() => editTodo.Title" />
+                                        <InputTextArea class="input" @bind-Value="editTodo.Notes" rows="2" />
+                                        <div class="edit-actions">
+                                            <button class="btn primary" type="submit">Save</button>
+                                            <button class="btn ghost" type="button" @onclick="CancelEdit">Cancel</button>
+                                        </div>
+                                    </div>
+                                </EditForm>
+                            }
+                            else
+                            {
+                                <div class="todo-text">
+                                    <h3>@item.Title</h3>
+                                    @if (!string.IsNullOrWhiteSpace(item.Notes))
+                                    {
+                                        <p>@item.Notes</p>
+                                    }
+                                    <small>Created @item.CreatedAt.ToString("MMM d, HH:mm")
+                                        @if (item.IsCompleted && item.CompletedAt is not null)
+                                        {
+                                            <span class="completed-at">· Completed @item.CompletedAt.Value.ToString("MMM d, HH:mm")</span>
+                                        }
+                                    </small>
+                                </div>
+                            }
+                        </div>
+                        <div class="todo-item-actions">
+                            @if (editingId != item.Id)
+                            {
+                                <button class="btn ghost" @onclick="() => BeginEdit(item)">Edit</button>
+                            }
+                            <button class="btn text" @onclick="() => DeleteTodo(item.Id)">Delete</button>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+</div>
+
+@code {
+    private readonly List<TodoItem> _items = new();
+    private TodoInputModel newTodo = new();
+    private TodoInputModel editTodo = new();
+    private Guid? editingId;
+    private string searchTerm = string.Empty;
+    private bool showCompleted = true;
+
+    private IEnumerable<TodoItem> FilteredTodos => _items
+        .Where(item => (showCompleted || !item.IsCompleted)
+            && (string.IsNullOrWhiteSpace(searchTerm)
+                || item.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(item.Notes) && item.Notes.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))))
+        .OrderBy(item => item.IsCompleted)
+        .ThenBy(item => item.CreatedAt);
+
+    private int RemainingCount => _items.Count(item => !item.IsCompleted);
+
+    private bool HasCompleted => _items.Any(item => item.IsCompleted);
+
+    private void AddTodo()
+    {
+        if (string.IsNullOrWhiteSpace(newTodo.Title))
+        {
+            return;
+        }
+
+        var todo = new TodoItem
+        {
+            Title = newTodo.Title.Trim(),
+            Notes = string.IsNullOrWhiteSpace(newTodo.Notes) ? null : newTodo.Notes.Trim(),
+            CreatedAt = DateTime.Now
+        };
+
+        _items.Add(todo);
+        ResetNewTodo();
+    }
+
+    private void ResetNewTodo()
+    {
+        newTodo = new TodoInputModel();
+    }
+
+    private void ToggleCompleted(TodoItem item, ChangeEventArgs args)
+    {
+        var isCompleted = args.Value switch
+        {
+            bool boolean => boolean,
+            string value when bool.TryParse(value, out var parsed) => parsed,
+            _ => item.IsCompleted
+        };
+
+        if (item.IsCompleted == isCompleted)
+        {
+            return;
+        }
+
+        item.IsCompleted = isCompleted;
+        item.CompletedAt = isCompleted ? DateTime.Now : null;
+    }
+
+    private void BeginEdit(TodoItem item)
+    {
+        editingId = item.Id;
+        editTodo = new TodoInputModel
+        {
+            Title = item.Title,
+            Notes = item.Notes
+        };
+    }
+
+    private void CancelEdit()
+    {
+        editingId = null;
+        editTodo = new TodoInputModel();
+    }
+
+    private void SaveEdit()
+    {
+        if (editingId is null)
+        {
+            return;
+        }
+
+        var item = _items.FirstOrDefault(todo => todo.Id == editingId);
+        if (item is null)
+        {
+            return;
+        }
+
+        var updatedTitle = editTodo.Title.Trim();
+        if (string.IsNullOrWhiteSpace(updatedTitle))
+        {
+            return;
+        }
+
+        item.Title = updatedTitle;
+        item.Notes = string.IsNullOrWhiteSpace(editTodo.Notes) ? null : editTodo.Notes.Trim();
+        editingId = null;
+        editTodo = new TodoInputModel();
+    }
+
+    private void DeleteTodo(Guid id)
+    {
+        var item = _items.FirstOrDefault(todo => todo.Id == id);
+        if (item is not null)
+        {
+            _items.Remove(item);
+        }
+    }
+
+    private void ClearCompleted()
+    {
+        _items.RemoveAll(item => item.IsCompleted);
+    }
+
+    private class TodoInputModel
+    {
+        [Required]
+        [StringLength(80, ErrorMessage = "Title is too long (80 character limit).")]
+        public string Title { get; set; } = string.Empty;
+
+        [StringLength(400, ErrorMessage = "Notes are too long (400 character limit).")]
+        public string? Notes { get; set; }
+    }
+}
