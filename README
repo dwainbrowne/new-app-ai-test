@@ -1,1 +1,21 @@
-.net plays your application to do this. 
+# TodoApp
+
+A Blazor WebAssembly to-do list application for organising daily tasks. The app lets you create, search, edit, complete and delete tasks with a polished UI built using modern styling.
+
+## Getting started
+
+1. Install the [.NET 8.0 SDK](https://dotnet.microsoft.com/download).
+2. Restore dependencies and run the development server:
+
+   ```bash
+   dotnet run --project TodoApp/TodoApp.csproj
+   ```
+
+3. Open the application in your browser at `https://localhost:5001` (or the URL shown in the console).
+
+## Features
+
+- Create to-do items with optional notes.
+- Search tasks and toggle the visibility of completed items.
+- Edit, complete, and delete tasks inline.
+- Responsive layout designed for desktop and mobile devices.
